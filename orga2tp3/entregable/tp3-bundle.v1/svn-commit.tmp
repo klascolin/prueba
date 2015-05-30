@@ -1,0 +1,11 @@
+Agrego cosas para cargar la idt, igual no esta andando
+
+--This line, and those below, will be ignored--
+
+M    src/diskette.img
+M    src/idt.c
+M    src/isr.asm
+M    src/kernel.asm
+M    src/kernel.bin
+M    src/kernel.sym
+M    src/screen.c

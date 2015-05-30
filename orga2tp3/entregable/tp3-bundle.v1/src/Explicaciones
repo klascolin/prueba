@@ -1,0 +1,87 @@
+Ejercicio1:
+
+*******************************************************************************************************
+Definiendo los descriptores de segmento para la GDT:
+*******************************************************************************************************
+Para definir la GDT y sus entradas, se modifico el codigo del archivo gdt.c.
+Dentro de el, se definio el vector de gdt_entry,llamado gdt, con los segmentos requeridos para el TP.
+La estructura gdt_entry representa, basicamente, a un descriptor de segmento. Como el primer descriptor es el nulo , y ademas se debe dejar reservados
+los siguientes siete, se hallara en la octava posicion el primer descriptor. El orden fue el siguiente:
+Datos nivel 0, Datos nivel 3, Codigo nivel 0, Codigo nivel 1.
+
+Para darle la prioridad es necesario modificar los bits asociados a DPL. Como el kernel va a trabajar con paginacion, pero la segmentacion,aunque minima,debe existir los cuatro segmentos quedan solapados. Esto es, se declara como base la posicion 0 del espacio lineal y como limite 500mb. 
+Para conseguir esto ultimo, es necesario setear el bit de Granularidad, para indicar que los 20 bits del OFFSET se multiplican por 4kb.
+De ahi que, el offset sea (1f3ff=127999*2^12 = 500mb).
+Como se indica en el manual, el bit L debe estar en 0 para el modo protegido de 32 bits  y el bit de siste S en 1 pues no se trata de un descriptor de sistema. Luego, la diferencia  de cada segmento, ademas de la prioridad, es el tipo. Los de codigo son del tipo Read/Write
+,accessed y los de datos Execute/Read, accessed(estariamos permitiendo que el codigo sea copiado por otra entidad, no solamente leido).
+
+
+*******************************************************************************************************
+Cargando la GDT:
+******************************************************************************************************
+
+Para poder indicar al procesador la direccion lineal que utilizara para encontrar el comienzo de la GDT , se utiliza la instruccion 
+lgdt. La misma recibe un literal de 48 bits, donde los primeros 16 representan el tamaño en bytes de la tabla y los restantes la direccion lineal del comienzo. Para esto , se utiliza el struct gdt_descriptor en gdt.c
+lgdt [GDT_DESC]
+donde GDT_DESC es un gdt_descriptor que tiene el tamaño del array gdt y la direccion de comienzo.
+
+
+******************************************************************************************************
+Pasando a Modo Protegido:
+******************************************************************************************************
+Una vez cargada la GDT, es necesario setear el bit de la posicion 0 del registro CR0. 
+    mov eax,cr0 			
+    or eax, 1
+    mov cr0,eax
+Luego, solo resta colocar en el selector de codigo por defecto,CS, el valor necesario para acceder a la decima posicion de la GDT(donde se encuentra el descritpor de segmento de codigo nivel cero correspondiente,ver arriba)
+**Ver razon del jump far**
+Una vez hecho esto, se continua ejecutando, ya en modo protegido, 
+las instrucciones pertinentes para cargar los diferentes segmentos.
+	xor eax,eax							;eax  = 0
+	mov ax,1000000b			
+	mov ds,ax 							;DS = Data Segment lvl 0
+	
+De esta forma se carga el selector de datos nivel 0. Notemos que 
+primero nos aseguramos de limpiar eax. Luego como DS es un selector 
+de segmento, hay que especificar el RPL (00 en este caso), el TI (0 
+en este caso pues habra que buscarlo directamente en la GDT). 
+Finalmente, los ultimos 13 bits menos significativos corresponderan 
+al indice, en este caso nuestro descriptor de datos se encuentra en 
+la posicion 8 de la GDT. El valor de DS seria '0080'.
+Se procede de esta manera con los otros dos restantes selectores. 
+Notemos que el CS ya fue inicializado en el item anterior, luego de 
+hacer JUMP.
+
+
+******************************************************************************************************
+Estableciendo el Segmento de Stack: 
+******************************************************************************************************
+En realidad, no se le asigna una entrada nueva en la GDT.Para ello, basta con indicar que el SS(Stack Segment) apunte al 
+descriptor de segmento de datos nivel 0. Simplemente hacemos:
+mov ax,1000000b
+	mov ss,ax	
+	
+Luego, para indicar el comienzo de la pila:
+mov esp,0x27000
+mov ebp,0x27000
+
+
+******************************************************************************************************
+Estableciendo el Segmento de Video: 
+******************************************************************************************************
+Se define en el archivo gdt.c un nuevo descriptor de segmento. Para 
+el, es necesario hace coincidir la direccion base con la memoria de 
+video. En principio, es de tipo dato:read/write accessed y su DPL 
+seria de nivel 0. Notemos que como la memoria consiste de 80x50 
+elementos de 2byte cada uno, el tamaño total es 80*50*2 = 8000  sera
+=1F40. Entonces, el limite sera 1f40 -1  = 1f3f.
+A pesar de definir este segmento, las rutinas que interactuan con la 
+memoria de video  lo hacen a traves del segemento de datos. Esto es 
+totalmente valido ya que b8000 + 1f3f < SIZEOF(DS) = 500mb.
+
+
+******************************************************************************************************
+Inicializando la pantalla del Kernel: 
+******************************************************************************************************
+
+	

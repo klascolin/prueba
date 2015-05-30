@@ -1,0 +1,36 @@
+*****************************************************************************
+La razon de hacer el jump far luego de pasar a modo protegido es la siguiente:
+*****************************************************************************
+
+el cs esta en 0x0000 inicialmente(16 bits). La forma de calcular la direccion es cs << 4 + ip.
+Cuando pasamos a modo protegido, el cs es solo un SELECTOR DE SEGMENTO por lo que 0x0000 estaria referenciando cualquier cosa
+(en particular, al elemento nulo de la gdt).
+
+JUMP (far) recibe un selector de segmento(una direccion de 16 bits interpretada) y a partir de ella selecciona con los campos de indice, 
+el DESCRIPTOR DE SEGMENTO en la gdt. 
+ADEMAS,  CARGA EL CS CON EL VALOR DEL SELECTOR QUE LE PASAMOS. ASI QUE , YA QUEDA SETEADO.
+
+*****************************************************************************
+Seteando el SS:
+*****************************************************************************
+
+
+No hay que definir un segmento de stack que sea expand down(razon?)
+Cito:
+"Take care when implementing your kernel. If you use segmentation, the DS segment should be configured to have it's base at 
+the same addressas SS does. Otherwise you may run into problems when passing pointers to local variables into functions, because normal
+GPRs can't access the stack the way you might think."
+Eso fue lo que hice, y despues puse el esp y ebp apuntando a la direccion 27000. (base del stack)
+Cada vez que se pushea un dato, se estaria usando el DS entonces(por default es el de datos) a partir de la 27000.
+Funciona como stack automaticamente, ya que la instruccion PUSH implica decrementar el ESP y poner el dato en la nueva posicion.
+
+
+*****************************************************************************
+Usando el segmento de video:
+*****************************************************************************
+
+Si bien definimos un segmento de video, fs, que comienza en la posicion b8000(correspondiente a la memoria de video), la macro de ellos y las
+funciones que se definen en screen.c usan ,por defecto, el DS para acceder a los datos. Entonces, las posiciones de la memoria de video se acceden
+desde el segmento descripto por el DS(que como es de 500 mb, seguro llega a la b8000). Basicamente, el segmento de video esta al pedo.(?)
+
+*****************************************************************************
